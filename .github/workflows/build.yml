@@ -1,0 +1,67 @@
+
+name: Build Liquid Siri APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'LiquidSiri-Android-v1.0.0-source.zip'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Liquid Siri Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          accept-android-sdk-licenses: 'true'
+          log-accepted-android-sdk-licenses: 'false'
+          packages: ''
+
+      - name: Install Android build components
+        run: |
+          sdkmanager --install \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "ndk;27.0.12077973" \
+            "cmake;3.22.1"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Extract Liquid Siri source
+        run: |
+          unzip -q LiquidSiri-Android-v1.0.0-source.zip -d extracted
+
+      - name: Verify project
+        working-directory: extracted/LiquidSiri
+        run: python3 tools/verify_project.py
+
+      - name: Build debug APK
+        working-directory: extracted/LiquidSiri
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace :app:assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: LiquidSiri-V1-APK
+          path: extracted/LiquidSiri/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
